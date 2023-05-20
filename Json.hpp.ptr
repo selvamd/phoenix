@@ -1,0 +1,305 @@
+#pragma once
+
+#include <string>
+#include <memory>
+#include <sstream>
+#include <iostream>
+#include <deque>
+#include <cassert>
+#include "GlobalUtils.hpp"
+
+//Simple Json parser
+class Json 
+{
+    public:
+      typedef std::shared_ptr<Json> JsonNode;
+      typedef std::vector<JsonNode> JsonContainer;
+
+      static Json& root(JsonContainer &nodes) 
+      { 
+          std::string temp = "";
+          return root(nodes,temp); 
+      }
+
+      static Json& root(JsonContainer &nodes, std::string &input)
+      {
+          char s[16388];
+          int count = 0, len = 0;
+          //strips the whitespaces before parsing
+          for (size_t i=0; i<input.length(); ++i)
+          {
+              char c = input.at(i); 
+              if (c != ' ') s[len++] = c;
+              //whitespaces inside data is ok
+              if ( c == ' ' && count % 2 == 1)
+                  s[len++] = c;
+              if (c == '\"') count++;
+          } 
+          s[len] = 0;
+          count = 0;
+          nodes.clear();
+          return parseObject(s, len, count, nodes);
+      }
+
+      Json& obj(std::string n = "")
+      {
+          JsonNode ptr(new Json('3',n,"",m_nodes));
+          m_nodes.push_back(ptr);
+          return *m_nodes[m_nodes.size()-1].get();
+      }
+
+      Json& arr(std::string n = "")
+      {
+          JsonNode ptr(new Json('2',n,"",m_nodes));
+          m_nodes.push_back(ptr);
+          return *m_nodes[m_nodes.size()-1].get();
+      }
+
+      Json& ele(std::string v) { return ele("",v); }
+
+      Json& ele(std::string n, std::string v)
+      {
+          JsonNode ptr(new Json('1',n,v,m_nodes));
+          m_nodes.push_back(ptr);
+          return *m_nodes[m_nodes.size()-1].get();
+      }
+
+      //level,type(1-ele,2-arr,3-obj),name,value
+      bool isobj()  { return type == '3'; }
+      bool isarr()  { return type == '2'; }
+      bool isele()  { return type == '1'; }
+
+
+      std::string & nodename() { return this->name; };
+      std::string & nodevalue() { return this->value; };
+  
+      size_t size()
+      {
+          size_t n = 0;
+          auto temp = child;
+          while (temp != nullptr)
+          {
+              temp = temp->next;
+              n++;
+          }
+          return n;  
+      }
+
+      bool has(std::string s)
+      {
+          auto temp = child;
+          while (temp != nullptr)
+          {
+              if (temp->name == s) return true;
+              temp = temp->next;
+          }
+          return false;
+      }
+
+      std::string gets(std::string s) { return get(s).value; }
+      std::string gets(size_t i) { return get(i).value; }
+      double getd(std::string s) { return getn<double>(s); }
+      double getd(size_t i) { return getn<double>(i); }
+      int geti(std::string s) { return getn<int>(s); }
+      int geti(size_t i) { return getn<int>(i); }
+
+      template <typename T>
+      T getn(size_t i) { return StringToNumber<T>(get(i).value); }
+
+      template <typename T>
+      T getn(std::string s) { return StringToNumber<T>(get(s).value); }
+
+
+      Json & get(std::string s)
+      {
+          auto temp = child;
+          while (temp != nullptr)
+          {
+              if (temp->name == s) return *temp;
+              temp = temp->next;
+          }
+          return *this; //error if reference to itself is returned
+      }
+
+      Json & get(size_t i)
+      {
+          size_t n = 0;
+          auto temp = child;
+          while (temp != nullptr)
+          {
+              if (n == i) return *temp;
+              temp = temp->next;
+              n++;
+          }
+          return *this; //error if reference to itself is returned
+      }
+
+      Json & operator<<(Json & newchild)
+      {
+          //arr - have same type of children and name is ignored
+          //obj - must have unique name and any type of children
+          //ele - child is always null
+          if (isele()) return *this;
+          if (isobj() && newchild.name.length() <= 0) return *this;
+          if (isarr() && newchild.name.length() > 0)  return *this;
+          if (this->child == nullptr)
+          {
+              this->child = &newchild;
+              //std::cout << "setting " << *this << " child with " << newchild << std::endl;
+              return *this;
+          }
+
+          auto temp = child;
+          while (temp != nullptr)
+          {
+              //Insert the new child at the end. Error if arr has different child types
+              if (isarr() && temp->type != newchild.type)
+                  return *this;
+
+              //Replace if name already exists, if not insert at the end
+              if (isobj() && temp->name == newchild.name)
+              {
+                  temp->value = newchild.value;   
+                  return *this;
+              }
+
+              if (temp->next == nullptr) break;
+              temp = temp->next;
+          }
+          temp->next = &newchild;
+          //std::cout << "setting " << *temp << " next with " << newchild << std::endl;
+          return *this;
+      }
+
+      std::string json()
+      {
+          if (isele() && name.length() > 0) return "\"" + name + "\":\"" + value + "\"";
+          if (isele() && name.length() <= 0) return "\"" + value + "\"";
+          if (isarr())
+          {
+              std::string result = "\"" + name + "\":[";
+              auto temp = child;
+              while (temp != nullptr)
+              {
+                  if (temp != child)
+                      result.append(",");
+                  
+                  result.append(temp->json());
+                  
+                  temp = temp->next;
+              }
+              result.append("]");
+              return result;
+          }
+          if (isobj())
+          {
+              std::string result = "\"" + name + "\":{";
+              if (name.length() == 0) result = "{";
+              auto temp = child;
+              while (temp != nullptr)
+              {
+                  if (temp != child)
+                      result.append(",");
+                  result.append(temp->json());
+                  temp = temp->next;
+              }
+              result.append("}");
+              return result;
+          }
+          return "";
+      }
+
+      virtual ~Json() 
+      {
+          //std::cout << *this << " destroyed " << std::endl;
+      }
+
+      friend std::ostream & operator << (std::ostream & out, const Json & data)
+      {
+          out << "Addr:" << &data << ",";
+          out << "name:" << data.name << ",";
+          out << "value:" << data.value << ",";
+          out << "type:" << data.type << ",";
+          out << "child:" << data.child << ",";
+          out << "next:" << data.next << ",";
+          return out;
+      }    
+
+    private:
+
+      //Always expected to call such that s[from] = '\"' 
+      static std::string parseTag(const char * s, int &from)
+      {
+          int cidx = 0;char c[256];
+          while (s[++from] != '\"' && cidx < 256)
+            c[cidx++] = s[from];
+          c[cidx] = 0;
+          from++;
+          return c;
+      }
+
+      static Json& parseObject(const char * s, const int strlen, int &from, JsonContainer &nodes)
+      {
+          JsonNode ptr(new Json('3', "", "", nodes));
+          nodes.push_back(ptr);
+          auto &rec = *nodes[nodes.size()-1].get();
+          from++;
+          while (from < strlen)
+          {
+              std::string n = parseTag(s,from);
+              from += 1; //skip ':' 
+
+              if (s[from] == '\"')
+              {
+                  std::string v = parseTag(s,from);
+                  rec << rec.ele(n,v);
+              }    
+              else if (s[from] == '{')
+              {
+                  auto& child = parseObject(s, strlen, from, nodes);  
+                  child.name = n;
+                  rec << child;
+              }
+              else if (s[from] == '[')
+              {
+                  auto &child = parseArray(s, strlen, from, nodes);
+                  child.name = n;
+                  rec << child;
+              }
+              
+              if (s[from++] == '}')
+                  break;
+          }
+          return rec;
+      }
+
+      static Json& parseArray(const char * s, const int strlen, int &from, JsonContainer &nodes)
+      {
+          JsonNode ptr(new Json('2', "", "", nodes));
+          nodes.push_back(ptr);
+          auto &rec = *nodes[nodes.size()-1].get();
+          from++;
+          while (from < strlen)
+          {
+              if (s[from] == '\"')
+                  rec << rec.ele(parseTag(s,from));
+              else if (s[from] == '{')
+                  rec << parseObject(s, strlen, from, nodes);
+              else if (s[from] == '[')
+                  rec << parseArray(s, strlen, from, nodes);
+              if (s[from++] == ']')
+                  break;
+          }
+          return rec;
+      }
+
+      Json(char t, const std::string &n, std::string v, JsonContainer &nodes) : 
+              type(t), name(n), value(v), child(nullptr), next(nullptr), m_nodes(nodes) { }
+
+      char type; //3-Object,2-Array,1-Element
+      std::string name;
+      std::string value;
+      Json * child;
+      Json * next;
+      JsonContainer &m_nodes;
+};
