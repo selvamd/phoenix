@@ -22,8 +22,8 @@ using namespace std;
 
 //Notes:
 // 1. Class model of this framework mimics the organisation of a Database. 
-//	  -	Database contains one or more tables 
-//    - Tables contains several data rows accessed like array using fastindex
+//	  -	A Database contains one or more tables 
+//    - Tables contains rows of data accessed like array using fastindex
 //	  - Relationships can be defined between tables using fastindex fields.
 //	  - Tables can define indices for ordered access.
 //    
@@ -899,11 +899,11 @@ class DomainDB
         //Example while (itrN != itr && itrN != itrB) itrN--;
         template <typename DO>
         int32_t riterator(typename DomainTable<DO>::IndexIterator &start_itr,
-                              typename DomainTable<DO>::IndexIterator &end_itr,
-                              typename DomainTable<DO>::IndexIterator &begin_itr,
-                              const std::string & index_name = "PrimaryKey",
-                              DO * start_key = NULL,
-                              DO * end_key = NULL)
+			typename DomainTable<DO>::IndexIterator &end_itr,
+			typename DomainTable<DO>::IndexIterator &begin_itr,
+			const std::string & index_name = "PrimaryKey",
+			DO * start_key = NULL,
+			DO * end_key = NULL)
         {
             DomainTable<DO> &table = DomainDB::instance(d_DBID).getTable<DO>();
             auto tblindex = table.getIndex(index_name);

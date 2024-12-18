@@ -140,7 +140,7 @@ int SocketStreamerBase::iReadNonBlockingN(char * sMsg, int iMaxLen, int iHeadSiz
 			header  = iHeadSize ;
 		}
 	} while(iBytes < header) ;
-
+	 //std::cout << iPad << "," << iPos << "," << iBytes << ","<< iHeadSize << std::endl;
      //Get size of message based on next header.
      //If invalid messages length, return error message.
 	int iMsgLen = iCalculateMsgSize();
