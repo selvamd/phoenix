@@ -22,8 +22,9 @@
 
 //A listener that serializes db change logs and writes it to disk
 //Packing Format = header[msgsize(2)+transid(4)] + [cTable,cField[255=>DELETE,254=>INSERT],iRowNum(4 byte),data]
-//The implementation allows either read or write (trying to do both from same class even serially doesnot work. Not sure why).
-//Please create seperate instances of reader and writer objects if we need to read and write. 
+//The implementation allows either read or write
+//Reusing reader as writer or vice versa should have worked but doesnot. 
+//Use seperate instances for now. 
 class DBFileSerializer : public DBChangeListener
 {
 	private:
